@@ -1,0 +1,54 @@
+---
+title: "Prediction Assignments WriteUp"
+output: html_document
+---
+
+Load the training data, convert NA and DIV/0 to null value in R:
+
+```{r,cache=TRUE}
+RawTraining<-read.csv("pml-training.csv",header=TRUE,na.strings=c("NA","#DIV/0!"))
+dim(RawTraining)
+RawTesting<-read.csv("pml-testing.csv",header=TRUE,na.strings=c("NA","#DIV/0!"))
+dim(RawTesting)
+```
+
+Next thing is to get rid of the columns that contains null or empty values:
+```{r,cache=TRUE}
+SelectedColumn<-apply(RawTraining,2,function(x){!any(is.na(x)||x=="")})&apply(RawTesting,2,function(x){!any(is.na(x)||x=="")})
+cleanedTrain<-RawTraining[,SelectedColumn][,-c(1:7)]
+cleanedTest<-RawTesting[,SelectedColumn][,-c(1:7)]
+dim(cleanedTrain)
+dim(cleanedTest)
+```
+
+Do data partition:
+```{r,cache=TRUE,warning=FALSE}
+library(caret)
+inTrain<-createDataPartition(cleanedTrain$classe, p=0.75,list=FALSE)
+training<-cleanedTrain[inTrain,]
+testing<-cleanedTrain[-inTrain,]
+dim(training)
+dim(testing)
+```
+
+Since random forest have relatively higher accuracy, we choose random forest to do the following analysis and predictions.
+
+Next we do a random forest train, Using 5 fold cross validation:
+```{r,cache=TRUE}
+inputControl<-trainControl(method="cv",number=5,allowParallel = TRUE,verbose=TRUE)
+modelfit<-train(classe~.,data=training,method="rf",trControl = inputControl,verbose=FALSE)
+```
+
+To see the performance of the random forest approach:
+```{r,message=FALSE,warning=FALSE}
+library(caret)
+pred<-predict(modelfit, newdata=testing)
+confusionMatrix(pred, testing$classe)
+```
+
+So the accuracy we get is 99.3% with a 95% confidence interval of (0.9901, 0.995), the Kappa value for this is 0.991.
+
+Next we apply this model to the 20 new test data set:
+```{r}
+predict(modelfit,newdata=cleanedTest)
+```
